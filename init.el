@@ -145,7 +145,7 @@ Examples: `Maple Mono NF' or `JetBrainsMono Nerd Font'."
   :type 'string
   :group 'emacs-solo)
 
-(defcustom emacs-solo-preferred-font-sizes '(130 105)
+(defcustom emacs-solo-preferred-font-sizes '(130 130)
   "List of default font sizes (first for macOS, second for GNU/Linux)."
   :type '(repeat integer)
   :group 'emacs-solo)
@@ -2669,6 +2669,7 @@ The completion candidates include the Git status of each file."
 
 
   ;; For *vc-dir* buffer:
+
   (with-eval-after-load 'vc-dir
     (define-key vc-dir-mode-map (kbd "S") #'emacs-solo/vc-git-add)
     (define-key vc-dir-mode-map (kbd "U") #'emacs-solo/vc-git-reset)
@@ -4099,6 +4100,9 @@ As seen on: https://www.reddit.com/r/emacs/comments/1kfblch/need_help_with_addin
 (require 'emacs-solo-erc-image)
 (require 'emacs-solo-yt)
 (require 'emacs-solo-gh)
+
+(require 'razvan)
+
 
 (provide 'init)
 ;;; └ init.el ends here
