@@ -34,5 +34,14 @@
   ;; Automatically open the URL in your web browser after generating link
   (git-link-open-in-browser t))
 
+;;; Tell project to ignore Cargo.toml as project marker and only look for .git.
+;;; This avoids the Cargo workspace problem where visiting a file in a crate
+;;; restricts project commands to that crate instead of the entire workspace.
+(use-package project
+  :ensure nil ; Built-in
+  :config
+  ;; Always use the root VCS (.git) directory as the project root
+  (setq project-vc-extra-root-markers '(".git")))
+
 (provide 'razvan)
 ;;; razvan.el ends here
