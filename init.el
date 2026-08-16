@@ -64,7 +64,7 @@
   :group 'emacs-solo)
 
 (defcustom emacs-solo-icon-modules
-  '(dired eshell ibuffer)
+  '(dired eshell ibuffer tab-bar)
   "List of Emacs Solo icon modules to enable.
 Controls which modules display file type icons.
 
@@ -72,15 +72,17 @@ Valid values (combine in a list):
 - \\='dired: Show file type icons in Dired buffers
 - \\='eshell: Show file type icons in Eshell prompts
 - \\='ibuffer: Show buffer type icons in Ibuffer
+- \\='tab-bar: Show glyphs on tab and tab group names
 - \\='nerd: Prefer Nerd Font glyphs over Emojis
 - nil: Disable all icons
 
-Default is \\='(dired eshell ibuffer), which uses Emoji icons.
+Default is \\='(dired eshell ibuffer tab-bar), which uses Emoji icons.
 Add \\='nerd to the list to use Nerd Font glyphs instead."
   :type '(set :tag "Emacs Solo icon modules"
               (const :tag "Use icons on Dired" dired)
               (const :tag "Use icons on Eshell" eshell)
               (const :tag "Use icons on Ibuffer" ibuffer)
+              (const :tag "Use icons on Tab Bar" tab-bar)
               (const :tag "Prefer Nerd Fonts icons over Emojis" nerd))
   :group 'emacs-solo)
 
@@ -91,6 +93,11 @@ Add \\='nerd to the list to use Nerd Font glyphs instead."
 
 (defcustom emacs-solo-enable-highlight-keywords t
   "Enable `emacs-solo-enable-highlight-keywords'."
+  :type 'boolean
+  :group 'emacs-solo)
+
+(defcustom emacs-solo-enable-eshell-banner t
+  "Enable the Emacs Solo Eshell banner with its keybinding hints."
   :type 'boolean
   :group 'emacs-solo)
 
@@ -176,6 +183,14 @@ buffer's `after-save-hook'."
   "Whether to enable Flymake integration using ESLint.
 This is disabled by default, since nowadays we tend to use LSP servers
 for ESLint."
+  :type 'boolean
+  :group 'emacs-solo)
+
+(defcustom emacs-solo-enable-flymake-languagetool nil
+  "Whether `text-mode' buffers start with LanguageTool checking on.
+The backend is loaded either way, so `flymake-languagetool-toggle'
+\(`C-c ! C-t') turns it on per buffer even when this is nil.
+Requires the `languagetool' executable to be present in variable `exec-path'."
   :type 'boolean
   :group 'emacs-solo)
 
@@ -279,7 +294,7 @@ parent directory created."
    ("M-g r" . recentf)
    ("M-s g" . grep)
    ("C-x ;" . comment-line)
-   ("M-s f" . find-name-dired)
+   ("M-s f" . find-dired)
    ("C-x C-b" . ibuffer)
    ("C-x p l". project-list-buffers)
    ("C-x w t"  . window-layout-transpose)            ; EMACS-31
@@ -368,6 +383,7 @@ parent directory created."
   (tramp-copy-size-limit (* 2 1024 1024)) ;; 2MB
   (tramp-use-scp-direct-remote-copying t)
   (tramp-verbose 1)
+  (query-replace-show-preview t)          ; EMACS-32
   (resize-mini-windows 'grow-only)
   (scroll-conservatively 8)
   (scroll-margin 5)
@@ -1040,21 +1056,44 @@ If ###@### is found, remove it and place point there at the end."
                     tab-bar-format-global))
   :init
   ;;; --- OPTIONAL INTERNAL FN OVERRIDES TO DECORATE NAMES
+  (defun emacs-solo/tab-bar-icons-p ()
+    "Non-nil when the tab bar is allowed to use glyphs."
+    (and (memq 'tab-bar emacs-solo-icon-modules) t))
+
   (defun tab-bar-tab-name-format-hints (name tab i)
-    (let ((open-glyph  (if (char-displayable-p ?⌞) "⌞" "["))
-          (close-glyph (if (char-displayable-p ?⌝) "⌝" "]")))
+    (let ((open-glyph  (if (and (emacs-solo/tab-bar-icons-p)
+                                (char-displayable-p ?⌞))
+                           "⌞" "["))
+          (close-glyph (if (and (emacs-solo/tab-bar-icons-p)
+                                (char-displayable-p ?⌝))
+                           "⌝" "]")))
       (if tab-bar-tab-hints
           (if (eq (car tab) 'current-tab)
               (concat (format "  %s%d%s  " open-glyph i close-glyph) "")
             (concat (format "   %d   " i) ""))
         name)))
 
+  (defvar emacs-solo/tab-bar-group-glyphs
+    '(:noicons " [p] " :nerd "    " :emoji " 🗂️ ")
+    "Glyph shown before the current tab group name, keyed by style.")
+
+  (defun emacs-solo/tab-bar-group-glyph ()
+    "Look up the tab group glyph for the current icon style."
+    (let* ((style (cond
+                   ((not (emacs-solo/tab-bar-icons-p))    :noicons)
+                   ((memq 'nerd emacs-solo-icon-modules)  :nerd)
+                   (t                                     :emoji)))
+           (val (plist-get emacs-solo/tab-bar-group-glyphs style)))
+      (if (char-displayable-p (string-to-char (string-trim val)))
+          val
+        (plist-get emacs-solo/tab-bar-group-glyphs :noicons))))
+
   ;;; --- MAKE DISABLED GROUP NOT BE RENDERED
   (defun tab-bar-tab-group-format-default (tab _i &optional current-p)
     (if current-p
         (propertize
-         (concat
-          (if (char-displayable-p ?) "   " " [p] ") (funcall tab-bar-tab-group-function tab))
+         (concat (emacs-solo/tab-bar-group-glyph)
+                 (funcall tab-bar-tab-group-function tab))
          'face 'tab-bar-tab-group-current)
       ""))
 
@@ -1288,9 +1327,11 @@ With BACKWARD non-nil, cycle to the previous tab instead."
     ;; (setq icomplete-vertical-unselected-prefix-indicator "   ")
     )
 
-  (if icomplete-in-buffer
-      (advice-add 'completion-at-point
-                  :after #'minibuffer-hide-completions))
+  ;; FIXME: delete this since EMACS-32 fixed it (a1f5b8cf863)
+  (when (< emacs-major-version 32)
+    (if icomplete-in-buffer
+        (advice-add 'completion-at-point
+                    :after #'minibuffer-hide-completions)))
 
   ;; https://lists.gnu.org/archive/html/bug-gnu-emacs/2025-03/msg02638.html
   ;;
@@ -1925,50 +1966,29 @@ Ex: mpv file1 file2 file3 file4..."
   :bind
   (("C-c e" . eshell))
   :defer t
+  :custom
+  (eshell-history-size 100000)
+  (eshell-hist-ignoredups t)
+  (eshell-history-append t)
+  :preface
+  (defun emacs-solo/eshell-sync-history ()
+    "Flush this session's new history, then reload the merged file."
+    (eshell-write-history eshell-history-file-name t)
+    (eshell-read-history eshell-history-file-name t))
+  :hook
+  (eshell-post-command . emacs-solo/eshell-sync-history)
   :config
-  (setq eshell-history-size 100000)
-  (setq eshell-hist-ignoredups t)
-
-
-  ;; MAKE ALL INSTANCES OF ESHELL SHARE/MERGE ITS COMMAND HISTORY
-  ;;
-  (defun emacs-solo/eshell--collect-all-history ()
-    "Return a list of all eshell history entries from all buffers and disk."
-    (let ((history-from-buffers
-           (cl-loop for buf in (buffer-list)
-                    when (with-current-buffer buf (derived-mode-p 'eshell-mode))
-                    append (with-current-buffer buf
-                             (when (boundp 'eshell-history-ring)
-                               (ring-elements eshell-history-ring)))))
-          (history-from-file
-           (when (file-exists-p eshell-history-file-name)
-             (with-temp-buffer
-               (insert-file-contents eshell-history-file-name)
-               (split-string (buffer-string) "\n" t)))))
-      (seq-uniq (append history-from-buffers history-from-file))))
-
-  (defun emacs-solo/eshell--save-merged-history ()
-    "Save all eshell buffer histories merged into `eshell-history-file-name`."
-    (let ((all-history (emacs-solo/eshell--collect-all-history)))
-      (with-temp-file eshell-history-file-name
-        (insert (mapconcat #'identity all-history "\n")))))
-
-  (add-hook 'kill-emacs-hook #'emacs-solo/eshell--save-merged-history)
-
-  (add-hook 'eshell-mode-hook
-            (lambda ()
-              (eshell-read-history)))
-
-
   ;; CUSTOM WELCOME BANNER
   ;;
   (setopt eshell-banner-message
-          (concat
-           (propertize "   Welcome to the Emacs Solo Shell  \n\n" 'face '(:weight bold :foreground "#f9e2af"))
-           (propertize " C-c t" 'face '(:foreground "#89b4fa" :weight bold)) " - toggles between prompts (full / minimum)\n"
-           (propertize " C-c T" 'face '(:foreground "#89b4fa" :weight bold)) " - toggles between full prompts (lighter / heavier)\n"
-           (propertize " C-c l" 'face '(:foreground "#89b4fa" :weight bold)) " - searches history\n"
-           (propertize " C-l  " 'face '(:foreground "#89b4fa" :weight bold)) " - clears scrolling\n\n"))
+          '(if emacs-solo-enable-eshell-banner
+               (concat
+                (propertize "   Welcome to the Emacs Solo Shell  \n\n" 'face '(:weight bold :foreground "#f9e2af"))
+                (propertize " C-c t" 'face '(:foreground "#89b4fa" :weight bold)) " - toggles between prompts (full / minimum)\n"
+                (propertize " C-c T" 'face '(:foreground "#89b4fa" :weight bold)) " - toggles between full prompts (lighter / heavier)\n"
+                (propertize " C-c l" 'face '(:foreground "#89b4fa" :weight bold)) " - searches history\n"
+                (propertize " C-l  " 'face '(:foreground "#89b4fa" :weight bold)) " - clears scrolling\n\n")
+             ""))
 
 
   ;; DISABLE SCROLLING CONSERVATIVELY ON ESHELL
@@ -1988,6 +2008,9 @@ Pre-fills the minibuffer with current Eshell input (from prompt to point)."
     (interactive)
     (unless (derived-mode-p 'eshell-mode)
       (user-error "This command must be called from an Eshell buffer"))
+    ;; Flush anything this session has not written yet, so the file holds
+    ;; every session's commands
+    (eshell-write-history eshell-history-file-name t)
     (let* (;; Safely get current input from prompt to point
            (bol (save-excursion (eshell-bol) (point)))
            (eol (point))
@@ -1997,14 +2020,19 @@ Pre-fills the minibuffer with current Eshell input (from prompt to point)."
            (history-file (expand-file-name eshell-history-file-name
                                            eshell-directory-name))
 
-           ;; Read from history file
+           ;; The file is the only globally time-ordered source: every
+           ;; session appends to it after each command.  Stored oldest
+           ;; first, with newlines encoded as ?\177
            (history-from-file
             (when (file-exists-p history-file)
               (with-temp-buffer
                 (insert-file-contents-literally history-file)
-                (split-string (buffer-string) "\n" t))))
+                (nreverse
+                 (mapcar (lambda (s) (subst-char-in-string ?\177 ?\n s))
+                         (split-string (buffer-string) "\n" t))))))
 
-           ;; Read from in-memory Eshell buffers
+           ;; Rings are only a fallback for entries not yet in the file.
+           ;; They are per-buffer, so they carry no global recency order
            (history-from-rings
             (cl-loop for buf in (buffer-list)
                      when (with-current-buffer buf (derived-mode-p 'eshell-mode))
@@ -2012,14 +2040,21 @@ Pre-fills the minibuffer with current Eshell input (from prompt to point)."
                               (when (bound-and-true-p eshell-history-ring)
                                 (ring-elements eshell-history-ring)))))
 
-           ;; Deduplicate and sort
-           (all-history (reverse
-                         (seq-uniq
-                          (seq-filter (lambda (s) (and s (not (string-empty-p s))))
-                                      (append history-from-rings history-from-file)))))
+           ;; Deduplicate, keeping the newest occurrence of each entry
+           (all-history (seq-uniq
+                         (seq-filter (lambda (s) (and s (not (string-empty-p s))))
+                                     (append history-from-file history-from-rings))))
+
+           ;; `identity' sorters keep our recency order, instead of the
+           ;; default length/alphabetical one
+           (history-table
+            (completion-table-with-metadata
+             all-history
+             '((display-sort-function . identity)
+               (cycle-sort-function . identity))))
 
            ;; Prompt user with current input as initial suggestion
-           (selection (completing-read "Eshell History: " all-history
+           (selection (completing-read "Eshell History: " history-table
                                        nil t current-input)))
 
       (when selection
@@ -2138,7 +2173,26 @@ Remote prompts always show user and host regardless of this setting."
     :type 'boolean
     :group 'emacs-solo)
 
-  (defvar emacs-solo/eshell-lambda-symbol (if (char-displayable-p ?λ) "  λ " "  $ ")
+  (defun emacs-solo/eshell-icons-p ()
+    "Non-nil when the Eshell prompt is allowed to use icons/separators."
+    (and (memq 'eshell emacs-solo-icon-modules) t))
+
+  (defun emacs-solo/eshell-bg (color)
+    "Return COLOR, or `unspecified' when there are no separator glyphs."
+    (if (emacs-solo/eshell-icons-p) color 'unspecified))
+
+  (defun emacs-solo/eshell-pad ()
+    "Left padding of each prompt line.  None without separator glyphs."
+    (if (emacs-solo/eshell-icons-p) " " ""))
+
+  (defun emacs-solo/eshell-glyph-prefix (name)
+    "Glyph NAME followed by a space, or nothing when there is no glyph."
+    (let ((glyph (emacs-solo/glyph name)))
+      (if (string-empty-p glyph) "" (concat glyph " "))))
+
+  (defvar emacs-solo/eshell-lambda-symbol
+    (concat (if (emacs-solo/eshell-icons-p) "  " "")
+            (if (char-displayable-p ?λ) "λ " "$ "))
     "Symbol used for the minimal Eshell prompt.")
 
   (defun emacs-solo/toggle-eshell-prompt ()
@@ -2172,8 +2226,8 @@ Remote prompts always show user and host regardless of this setting."
   (defvar emacs-solo/eshell-prompt-glyphs
     '((arrow-left   :noicons ""      :nerd ""  :emoji "")
       (arrow-right  :noicons ""      :nerd ""  :emoji "")
-      (success      :noicons "1"     :nerd ""  :emoji "🟢")
-      (failure      :noicons "0"     :nerd ""  :emoji "🔴")
+      (success      :noicons ""      :nerd ""  :emoji "🟢")
+      (failure      :noicons ""      :nerd ""  :emoji "🔴")
       (user-local   :noicons ""      :nerd ""  :emoji "🧙")
       (user-remote  :noicons ""      :nerd ""  :emoji "👽")
       (host-local   :noicons ""      :nerd ""  :emoji "💻")
@@ -2194,9 +2248,9 @@ Remote prompts always show user and host regardless of this setting."
 For the current icon style."
     (let* ((row (assq name emacs-solo/eshell-prompt-glyphs))
            (style (cond
-                   ((not (memq 'eshell emacs-solo-icon-modules)) :noicons)
-                   ((memq 'nerd emacs-solo-icon-modules)         :nerd)
-                   (t                                             :emoji)))
+                   ((not (emacs-solo/eshell-icons-p))    :noicons)
+                   ((memq 'nerd emacs-solo-icon-modules) :nerd)
+                   (t                                    :emoji)))
            (val (plist-get (cdr row) style)))
       (if (char-displayable-p (string-to-char val))
           val "")))
@@ -2261,23 +2315,26 @@ For the current icon style."
                   (emacs-solo/glyph 'arrow-left) 'face `(:foreground ,eshell-solo/color-bg-dark))
 
                  (propertize
-                  (if (> eshell-last-command-status 0)
-                      (concat " " (emacs-solo/glyph 'failure)  " ")
-                    (concat " " (emacs-solo/glyph 'success)  " "))
-                  'face `(:background ,eshell-solo/color-bg-dark))
-
-                 (propertize (concat (number-to-string eshell-last-command-status) " ")
-                             'face `(:background ,eshell-solo/color-bg-dark))
+                  (if (emacs-solo/eshell-icons-p)
+                      (concat (emacs-solo/eshell-pad)
+                              (if (> eshell-last-command-status 0)
+                                  (emacs-solo/glyph 'failure)
+                                (emacs-solo/glyph 'success))
+                              " "
+                              (number-to-string eshell-last-command-status) " ")
+                    "")
+                  'face `(:background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark)))
 
                  (propertize (emacs-solo/glyph 'arrow-right)
-                             'face `(:foreground ,eshell-solo/color-bg-dark :background ,eshell-solo/color-bg-mid))
+                             'face `(:foreground ,eshell-solo/color-bg-dark :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-mid)))
 
-                 (propertize (concat " " (emacs-solo/glyph 'time)  " "
+                 (propertize (concat (emacs-solo/eshell-pad)
+                                     (emacs-solo/eshell-glyph-prefix 'time)
                                      (format-time-string "%H:%M:%S" (current-time)) " ")
-                             'face `(:foreground ,eshell-solo/color-fg-user :background ,eshell-solo/color-bg-mid))
+                             'face `(:foreground ,eshell-solo/color-fg-user :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-mid)))
 
                  (propertize (emacs-solo/glyph 'arrow-right)
-                             'face `(:foreground ,eshell-solo/color-bg-mid :background ,eshell-solo/color-bg-dark))
+                             'face `(:foreground ,eshell-solo/color-bg-mid :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark)))
 
                  (when (or (file-remote-p default-directory)
                            emacs-solo/eshell-show-user-host)
@@ -2291,10 +2348,10 @@ For the current icon style."
                                    (or remote-user (user-login-name))
                                    " "))
                                 'face `(:foreground ,eshell-solo/color-fg-user
-                                                    :background ,eshell-solo/color-bg-dark))
+                                                    :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark)))
 
                     (propertize (emacs-solo/glyph 'arrow-right) 'face
-                                `(:foreground ,eshell-solo/color-bg-dark :background ,eshell-solo/color-bg-mid))
+                                `(:foreground ,eshell-solo/color-bg-dark :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-mid)))
 
                     (let ((remote-host (file-remote-p default-directory 'host))
                           (is-remote (file-remote-p default-directory)))
@@ -2302,16 +2359,21 @@ For the current icon style."
                                               (concat " " (emacs-solo/glyph 'host-remote)  " ")
                                             (concat " " (emacs-solo/glyph 'host-local)  " "))
                                           (or remote-host (system-name)) " ")
-                                  'face `(:background ,eshell-solo/color-bg-mid  :foreground ,eshell-solo/color-fg-host)))
+                                  'face `(:background ,(emacs-solo/eshell-bg eshell-solo/color-bg-mid)  :foreground ,eshell-solo/color-fg-host)))
 
                     (propertize (emacs-solo/glyph 'arrow-right) 'face
-                                `(:foreground ,eshell-solo/color-bg-mid :background ,eshell-solo/color-bg-dark))))
+                                `(:foreground ,eshell-solo/color-bg-mid :background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark)))))
 
                  (propertize (concat " " (emacs-solo/glyph 'folder)  " "
                                      (if (>= (length (eshell/pwd)) 40)
                                          (concat "…" (car (last (butlast (split-string (eshell/pwd) "/") 0))))
                                        (abbreviate-file-name (eshell/pwd))) " ")
-                             'face `(:background ,eshell-solo/color-bg-dark :foreground ,eshell-solo/color-fg-dir))
+                             'face `(:background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark) :foreground ,eshell-solo/color-fg-dir))
+
+                 (when (and (not (emacs-solo/eshell-icons-p))
+                            (> eshell-last-command-status 0))
+                   (propertize (format "  [%d] " eshell-last-command-status)
+                               'face 'error))
 
                  (propertize (concat (emacs-solo/glyph 'arrow-right) "\n")
                              'face `(:foreground ,eshell-solo/color-bg-dark))
@@ -2327,7 +2389,8 @@ For the current icon style."
                                 'face `(:foreground ,eshell-solo/color-bg-dark))
                     (propertize
                      (concat
-                      (concat " " (emacs-solo/glyph 'branch) " " branch " ")
+                      (concat (emacs-solo/eshell-pad)
+                              (emacs-solo/glyph 'branch) " " branch " ")
                       (when emacs-solo/eshell-full-prompt-resource-intensive
                         (let* ((info (emacs-solo/git-info))
                                (ahead (plist-get info :ahead))
@@ -2349,7 +2412,7 @@ For the current icon style."
                            (when (> conflicts 0)
                              (format (concat " " (emacs-solo/glyph 'conflict) "%d") conflicts))
                            " "))))
-                     'face `(:background ,eshell-solo/color-bg-dark :foreground ,eshell-solo/color-fg-git))
+                     'face `(:background ,(emacs-solo/eshell-bg eshell-solo/color-bg-dark) :foreground ,eshell-solo/color-fg-git))
                     (propertize (concat (emacs-solo/glyph 'arrow-right) "\n")
                                 'face `(:foreground ,eshell-solo/color-bg-dark))))
 
@@ -2444,6 +2507,7 @@ For the current icon style."
 
   ;; This one is for editing commit messages
   (require 'log-edit)
+
   (setopt log-edit-confirm 'changed
           log-edit-keep-buffer nil
           log-edit-require-final-newline t
@@ -2798,27 +2862,34 @@ The completion candidates include the Git status of each file."
               ("C-c ! l" . flymake-show-buffer-diagnostics)
               ("C-c ! t" . toggle-flymake-diagnostics-at-eol))
   :custom
-  (flymake-show-diagnostics-at-end-of-line nil)
-  ;; (flymake-show-diagnostics-at-end-of-line 'short)
   (flymake-indicator-type 'margins)
   (flymake-margin-indicators-string
    `((error "!" compilation-error)      ;; Alternatives: », E, W, i, !, ?, ⚠️)
      (warning "?" compilation-warning)
      (note "i" compilation-info)))
   :config
+  ;; EMACS-32 renamed `flymake-show-diagnostics-at-end-of-line' to
+  ;; `flymake-inline-diagnostics'.  Resolve it after load, never before.
+  (defconst emacs-solo--flymake-inline-var
+    (if (boundp 'flymake-inline-diagnostics)
+        'flymake-inline-diagnostics
+      'flymake-show-diagnostics-at-end-of-line)
+    "Variable holding the inline/eol diagnostics style on this Emacs.")
+
+  (set-default emacs-solo--flymake-inline-var nil)
+
   ;; Define the toggle function
   (defun toggle-flymake-diagnostics-at-eol ()
     "Toggle the display of Flymake diagnostics at the end of the line
 and restart Flymake to apply the changes."
     (interactive)
-    (setq flymake-show-diagnostics-at-end-of-line
-          (not flymake-show-diagnostics-at-end-of-line))
-    (flymake-mode -1) ;; Disable Flymake
-    (flymake-mode 1)  ;; Re-enable Flymake
-    (message ">>> emacs-solo: Flymake diagnostics at end of line %s"
-             (if flymake-show-diagnostics-at-end-of-line
-                 "Enabled" "Disabled"))))
-
+    (let ((var emacs-solo--flymake-inline-var))
+      ;; `short' is valid on both 31 and 32; t is not valid on 32.
+      (set-default var (if (symbol-value var) nil 'short))
+      (flymake-mode -1) ;; Disable Flymake
+      (flymake-mode 1)  ;; Re-enable Flymake
+      (message ">>> emacs-solo: Flymake diagnostics at end of line %s"
+               (if (symbol-value var) "Enabled" "Disabled")))))
 
 ;;; │ FLYSPELL
 (use-package flyspell
@@ -4073,6 +4144,7 @@ As seen on: https://www.reddit.com/r/emacs/comments/1kfblch/need_help_with_addin
 (require 'emacs-solo-ace-window)
 (require 'emacs-solo-olivetti)
 (require 'emacs-solo-temp-sharing)
+(require 'emacs-solo-smash)
 (require 'emacs-solo-cl)
 (require 'emacs-solo-sudo-edit)
 (require 'emacs-solo-replace-as-diff)
@@ -4093,6 +4165,7 @@ As seen on: https://www.reddit.com/r/emacs/comments/1kfblch/need_help_with_addin
 (require 'emacs-solo-khard)
 (require 'emacs-solo-khal)
 (require 'emacs-solo-flymake-eslint)
+(require 'emacs-solo-flymake-languagetool)
 (require 'emacs-solo-erc-image)
 (require 'emacs-solo-yt)
 (require 'emacs-solo-gh)
