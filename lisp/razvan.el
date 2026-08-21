@@ -1,7 +1,23 @@
 ;;; package -- Personal tweaks
+;;; Commentary:
+;;  My cusotmizations in after solo.
+;;
+;;; Code:
 (add-hook 'prog-mode-hook #'emacs-solo/prefer-spaces)
 (add-hook 'text-mode-hook #'emacs-solo/prefer-spaces)
 (setq-default indent-tabs-mode nil)
+;; NOTE: emacs-solo-themes.el gates each theme's `use-package' block behind
+;; `:if (eq emacs-solo-use-custom-theme 'THEME)', evaluated once, when
+;; init.el `require's that file -- which happens before razvan.el is loaded.
+;; Setting the variable here is too late to affect that check on its own, so
+;; after fixing it we reload emacs-solo-themes.el to re-run the gating
+;; logic now that the variable has the right value.
+(customize-set-variable 'emacs-solo-use-custom-theme 'catppuccin)
+;; Disable whatever theme init.el already loaded for the `defcustom' default
+;; (`crafters') so it doesn't linger underneath and leak faces `gits'
+;; doesn't override.
+(mapc #'disable-theme custom-enabled-themes)
+(load (locate-library "emacs-solo-themes") nil t)
 
 ;; Ensure this keybinding works without having to cal magit-status manually once.
 (use-package magit
@@ -42,6 +58,27 @@
   :config
   ;; Always use the root VCS (.git) directory as the project root
   (setq project-vc-extra-root-markers '(".git")))
+
+;; Toggle a symbol outline frame
+(use-package imenu-list
+  :ensure t
+  :bind ("C-c l l" . imenu-list-smart-toggle))
+
+(use-package blamer
+  :ensure t
+  :bind (("s-i" . blamer-show-commit-info)
+         ("C-c g b" . blamer-show-posframe-commit-info))
+  :defer 20
+  :custom
+  (blamer-idle-time 0.3)
+  (blamer-min-offset 70)
+  :custom-face
+  (blamer-face ((t :foreground "#7a88cf"
+                    :background nil
+                    :height 140
+                    :italic t)))
+  :config
+  (global-blamer-mode 1))
 
 (provide 'razvan)
 ;;; razvan.el ends here
