@@ -53,7 +53,7 @@
 ;;; ┌──────────────────── EMACS SOLO CUSTOM OPTIONS
 ;;
 ;;  Some features Emacs Solo provides you can turn on/off
-(defcustom emacs-solo-enable-outline-init t
+(defcustom emacs-solo-enable-outline-init nil
   "Enable init.el starting all collapsed."
   :type 'boolean
   :group 'emacs-solo)
@@ -146,13 +146,13 @@ IMPORTANT NOTE: If you disable this or choose another theme, also check
   :type 'boolean
   :group 'emacs-solo)
 
-(defcustom emacs-solo-preferred-font-name "JetBrainsMono Nerd Font"
+(defcustom emacs-solo-preferred-font-name "0xProto Nerd Font Mono"
   "The name of the font to be used.
 Examples: `Maple Mono NF' or `JetBrainsMono Nerd Font'."
   :type 'string
   :group 'emacs-solo)
 
-(defcustom emacs-solo-preferred-font-sizes '(133 133)
+(defcustom emacs-solo-preferred-font-sizes '(110 110)
   "List of default font sizes (first for macOS, second for GNU/Linux)."
   :type '(repeat integer)
   :group 'emacs-solo)
