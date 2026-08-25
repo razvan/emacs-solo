@@ -75,10 +75,37 @@
   :custom-face
   (blamer-face ((t :foreground "#7a88cf"
                     :background nil
-                    :height 140
+                    :height 110
                     :italic t)))
   :config
   (global-blamer-mode 1))
+
+;; Automatically save/restore desktop on exit
+(desktop-save-mode 1)
+
+;; WORKAROUND: C-SPC would silently fail to make a selection, typically right
+;; after switching windows with C-x o.  `string-pixel-width' measures a string
+;; by inserting it into the reusable " *work*" buffer; it guards its own
+;; `insert' against clobbering `deactivate-mark' (subr-x.el, "Avoid
+;; deactivating the region as side effect") but `work-buffer--release' calls
+;; `erase-buffer' unguarded, so releasing the work buffer sets
+;; `deactivate-mark' and the command loop then kills the region.
+;;
+;; Both `mode--line-format-right-align' and `tab-bar-format-align-right'
+;; measure that way, and `line-move-visual' (i.e. plain C-n) re-evaluates the
+;; mode line when the window geometry cache is stale -- which is exactly what
+;; C-x o invalidates.  Hence: mark, move, region gone.
+;;
+;; `inhibit-modification-hooks' makes `prepare_to_modify_buffer_1' return
+;; before it touches `deactivate-mark', which is harmless for a scratch work
+;; buffer.  Drop this once Emacs guards `work-buffer--release' itself.
+(defun razvan/pixel-width-preserve-region (orig &rest args)
+  "Call ORIG with ARGS without letting work-buffer edits clobber the region."
+  (let ((inhibit-modification-hooks t))
+    (apply orig args)))
+
+(advice-add 'string-pixel-width :around #'razvan/pixel-width-preserve-region)
+(advice-add 'truncate-string-pixelwise :around #'razvan/pixel-width-preserve-region)
 
 (provide 'razvan)
 ;;; razvan.el ends here
