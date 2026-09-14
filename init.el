@@ -121,7 +121,7 @@ Add \\='nerd to the list to use Nerd Font glyphs instead."
   :type 'boolean
   :group 'emacs-solo)
 
-(defcustom emacs-solo-use-custom-theme 'crafters
+(defcustom emacs-solo-use-custom-theme 'catppuccin
   "Select which emacs-solo customization theme to use.
 
 Valid values are:
