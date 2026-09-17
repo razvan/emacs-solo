@@ -14,10 +14,12 @@
   :ensure t
   :bind ("C-x g" . magit-status))
 
+;; Needed by imenu-list and other packages
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+
 ;; ;; Manage GitHub issues and pull requests
 ;; ;; Requires an access token in ~/.authinfo.gpg in the form of:
 ;; ;;   machine api.github.com login YOUR_USERNAME^forge password YOUR_TOKEN
-;; (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 ;; (use-package forge
 ;;   :ensure t
 ;;   :after magit)
@@ -54,21 +56,20 @@
   :ensure t
   :bind ("C-c l l" . imenu-list-smart-toggle))
 
-;; (use-package blamer
-;;   :ensure t
-;;   :bind (("s-i" . blamer-show-commit-info)
-;;          ("C-c g b" . blamer-show-posframe-commit-info))
-;;   :defer 20
-;;   :custom
-;;   (blamer-idle-time 0.3)
-;;   (blamer-min-offset 70)
-;;   :custom-face
-;;   (blamer-face ((t :foreground "#7a88cf"
-;;                     :background nil
-;;                     :height 110
-;;                     :italic t)))
-;;   :config
-;;   (global-blamer-mode 1))
+(use-package blamer
+  :ensure t
+  :bind (("C-c g b" . blamer-show-posframe-commit-info))
+  :defer 20
+  :custom
+  (blamer-idle-time 0.3)
+  (blamer-min-offset 70)
+  :custom-face
+  (blamer-face ((t :foreground "#7a88cf"
+                    :background nil
+                    :height 110
+                    :italic t)))
+  :config
+  (global-blamer-mode 0))
 
 ;; WORKAROUND: C-SPC would silently fail to make a selection, typically right
 ;; after switching windows with C-x o.  `string-pixel-width' measures a string
