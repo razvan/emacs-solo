@@ -64,7 +64,7 @@
   :group 'emacs-solo)
 
 (defcustom emacs-solo-icon-modules
-  '(dired eshell ibuffer tab-bar)
+  '(dired eshell ibuffer tab-bar mode-line)
   "List of Emacs Solo icon modules to enable.
 Controls which modules display file type icons.
 
@@ -73,16 +73,18 @@ Valid values (combine in a list):
 - \\='eshell: Show file type icons in Eshell prompts
 - \\='ibuffer: Show buffer type icons in Ibuffer
 - \\='tab-bar: Show glyphs on tab and tab group names
+- \\='mode-line: Show glyphs on the mode-line (λ, VC branch)
 - \\='nerd: Prefer Nerd Font glyphs over Emojis
 - nil: Disable all icons
 
-Default is \\='(dired eshell ibuffer tab-bar), which uses Emoji icons.
-Add \\='nerd to the list to use Nerd Font glyphs instead."
+Default is \\='(dired eshell ibuffer tab-bar mode-line), which uses
+Emoji icons.  Add \\='nerd to the list to use Nerd Font glyphs instead."
   :type '(set :tag "Emacs Solo icon modules"
               (const :tag "Use icons on Dired" dired)
               (const :tag "Use icons on Eshell" eshell)
               (const :tag "Use icons on Ibuffer" ibuffer)
               (const :tag "Use icons on Tab Bar" tab-bar)
+              (const :tag "Use icons on Mode Line" mode-line)
               (const :tag "Prefer Nerd Fonts icons over Emojis" nerd))
   :group 'emacs-solo)
 
@@ -2595,6 +2597,15 @@ The completion candidates include the Git status of each file."
 
   (set-default emacs-solo--flymake-inline-var nil)
 
+  ;; EMACS-32 moved the `trusted-content-p' gate out of `elisp-mode.el'
+  ;; and into `flymake--run-backend', so it now disables *every* backend
+  ;; in untrusted buffers, ours included.  Trust the projects folder.
+  ;; Harmless on 31, where only the elisp backends consult it.
+  (setq trusted-content
+        (list (file-name-as-directory
+               (or (bound-and-true-p emacs-solo-default-projects-folder)
+                   "~/Projects"))))
+
   ;; Define the toggle function
   (defun toggle-flymake-diagnostics-at-eol ()
     "Toggle the display of Flymake diagnostics at the end of the line
@@ -3285,8 +3296,9 @@ minimal keybindings (q kills the window, n/p move by line)."
   (proced-format 'medium) ;; can be changed interactively with `F'
   (proced-filter 'user)   ;; can be changed interactively with `f'
   :config
-  ;; FIXME: Remove this once https://debbugs.gnu.org/cgi/bugreport.cgi?bug=80898 lands
-  (when (eq system-type 'darwin)
+  ;; Remove this when EMACS-32 is the current release.
+  ;; Bug#80898 already implements this feature.
+  (when (and (eq system-type 'darwin) (< emacs-major-version 32))
     (defvar emacs-solo--proced-ps-cache (make-hash-table))
     (defvar emacs-solo--proced-ps-timer nil)
 
