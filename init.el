@@ -252,6 +252,7 @@ Changes take effect after restarting Emacs."
     (tramp-persistency-file-name . "tramp")
     (viper-custom-file-name      . "viper")
     (nsm-settings-file           . "network-security.data")
+    (emacs-solo-zoxide-file      . "zoxide.eld")
     ;; Directories:
     (auto-saves                  . "auto-saves/")
     (auto-saves-sessions         . "auto-saves/sessions/")
@@ -3867,6 +3868,7 @@ As seen on: https://www.reddit.com/r/emacs/comments/1kfblch/need_help_with_addin
 (require 'emacs-solo-icons-dired)
 (require 'emacs-solo-icons-ibuffer)
 (require 'emacs-solo-icons-eshell)
+(require 'emacs-solo-zoxide)
 (require 'emacs-solo-container)
 (require 'emacs-solo-m3u)
 (require 'emacs-solo-clipboard)
