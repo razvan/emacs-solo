@@ -7,7 +7,7 @@
 (add-hook 'text-mode-hook #'emacs-solo/prefer-spaces)
 (setq-default indent-tabs-mode nil)
 ;; Automatically save/restore desktop on exit
-(desktop-save-mode 1)
+;; (desktop-save-mode 1)
 
 ;; Ensure this keybinding works without having to cal magit-status manually once.
 (use-package magit
@@ -15,7 +15,10 @@
   :bind ("C-x g" . magit-status))
 
 ;; Needed by imenu-list and other packages
-(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+;; `package' isn't necessarily loaded yet at this point, so `package-archives'
+;; may still be unbound.
+(with-eval-after-load 'package
+  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
 
 ;; ;; Manage GitHub issues and pull requests
 ;; ;; Requires an access token in ~/.authinfo.gpg in the form of:
