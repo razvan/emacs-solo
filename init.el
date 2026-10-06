@@ -155,7 +155,7 @@ Examples: `Maple Mono NF' or `JetBrainsMono Nerd Font'."
   :type 'string
   :group 'emacs-solo)
 
-(defcustom emacs-solo-preferred-font-sizes '(130 105 120)
+(defcustom emacs-solo-preferred-font-sizes '(130 130 120)
   "List of default font sizes (first for macOS, second for GNU/Linux, third for FreeBSD)."
   :type '(repeat integer)
   :group 'emacs-solo)
