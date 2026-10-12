@@ -1,4 +1,4 @@
-;;; init.el --- Emacs Solo (no external packages) Configuration --- Init  -*- lexical-binding: t; byte-compile-warnings: (not free-vars unresolved make-local); -*-
+;; init.el --- Emacs Solo (no external packages) Configuration --- Init  -*- lexical-binding: t; byte-compile-warnings: (not free-vars unresolved make-local); -*-
 ;;
 ;; Author: Rahul Martim Juliato
 ;; URL: https://github.com/LionyxML/emacs-solo
@@ -783,9 +783,7 @@ or is an ERC buffer."
                     emacs-major-version
                     emacs-minor-version
                     (emacs-init-time)
-                    (number-to-string
-                                 (emacs-init-time)
-                                 (length package-activated-list)))))
+                    (number-to-string (length package-activated-list))))
 
     (message ">>> emacs-solo: init time %s" (emacs-init-time))))
 
