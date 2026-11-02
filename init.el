@@ -427,7 +427,7 @@ parent directory created."
   (treesit-font-lock-level 4)
   (treesit-auto-install-grammar 'always)
   (treesit-enabled-modes t)
-  (truncate-lines t)
+  (truncate-lines nil)
   (undo-limit (* 13 160000))
   (undo-strong-limit (* 13 240000))
   (undo-outer-limit (* 13 24000000))
@@ -772,6 +772,7 @@ or is an ERC buffer."
   (winner-mode)
   (xterm-mouse-mode 1)
   (file-name-shadow-mode 1) ; allows us to type a new path without having to delete the current one
+  (global-visual-line-mode 1) ; wrap long lines at word boundaries in all buffers
 
   (with-current-buffer (get-buffer-create "*scratch*")
     (insert (format ";;
