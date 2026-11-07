@@ -123,7 +123,7 @@ Emoji icons.  Add \\='nerd to the list to use Nerd Font glyphs instead."
   :type 'boolean
   :group 'emacs-solo)
 
-(defcustom emacs-solo-use-custom-theme 'catppuccin
+(defcustom emacs-solo-use-custom-theme 'crafters
   "Select which emacs-solo customization theme to use.
 
 Valid values (need modus-themes >= 5, bundled with Emacs 31+):
